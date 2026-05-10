@@ -1,5 +1,9 @@
 module CartesianRuns
 
-# Write your package code here.
+export Interval,
+       find_runs
+
+include("types.jl")
+include("runs.jl")
 
 end
