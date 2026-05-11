@@ -1,9 +1,10 @@
 module CartesianRuns
 
 export Interval,
-       push_runs!
+       CartesianRunIndices,
+       shift
 
 include("types.jl")
-include("runs.jl")
+include("construction.jl")
 
 end
