@@ -1,7 +1,7 @@
 module CartesianRuns
 
 export Interval,
-       find_runs
+       push_runs!
 
 include("types.jl")
 include("runs.jl")

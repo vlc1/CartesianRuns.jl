@@ -3,37 +3,58 @@ using Test
 using OffsetArrays
 
 @testset "empty and boundary cases" begin
-    @test isempty(find_runs(Bool[]))
-    @test isempty(find_runs(Bool[0, 0, 0, 0]))
-    @test isempty(find_runs(Bool[0]))
-    @test isempty(find_runs(Bool[], 100))
+    runs = similar(Bool[], Interval, 0)
+    (n, m) = push_runs!(runs, Bool[], 0)
+    @test isempty(runs)
+    @test (n, m) == (0, 0)
+
+    runs = similar(Bool[0, 0, 0, 0], Interval, 0)
+    push_runs!(runs, Bool[0, 0, 0, 0], 0)
+    @test isempty(runs)
+
+    runs = similar(Bool[0], Interval, 0)
+    push_runs!(runs, Bool[0], 0)
+    @test isempty(runs)
+
+    runs = similar(Bool[], Interval, 0)
+    push_runs!(runs, Bool[], 100)
+    @test isempty(runs)
 end
 
 @testset "single elements" begin
-    runs = find_runs(Bool[1])
+    runs = similar(Bool[1], Interval, 0)
+    push_runs!(runs, Bool[1], 0)
     @test length(runs) == 1
     @test runs[1].range == 1:1
     @test runs[1].shift == 0
 
-    runs = find_runs(Bool[0, 0, 1, 0, 0])
+    runs = similar(Bool[0, 0, 1, 0, 0], Interval, 0)
+    push_runs!(runs, Bool[0, 0, 1, 0, 0], 0)
     @test length(runs) == 1
     @test runs[1].range == 3:3
     @test runs[1].shift == -2
 end
 
 @testset "all true" begin
-    runs = find_runs(Bool[1, 1, 1])
+    runs = similar(Bool[1, 1, 1], Interval, 0)
+    (n, m) = push_runs!(runs, Bool[1, 1, 1], 0)
     @test length(runs) == 1
     @test runs[1].range == 1:3
     @test runs[1].shift == 0
+    @test (n, m) == (3, 1)
 
-    runs = find_runs(Bool[1, 1, 1], 100)
+    runs = similar(Bool[1, 1, 1], Interval, 0)
+    (n, m) = push_runs!(runs, Bool[1, 1, 1], 100)
     @test runs[1].shift == 100
+    @test (n, m) == (3, 1)
 end
 
 @testset "two disjoint runs" begin
-    runs = find_runs(Bool[0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0])
+    mask = Bool[0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0]
+    runs = similar(mask, Interval, 0)
+    (n, m) = push_runs!(runs, mask, 0)
     @test length(runs) == 2
+    @test (n, m) == (5, 2)
 
     @test runs[1].range == 5:7
     @test runs[1].shift == -4
@@ -44,7 +65,9 @@ end
 
 @testset "two disjoint runs with prior=100" begin
     # prior=100 simulates 100 trues seen on prior scanlines
-    runs = find_runs(Bool[0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0], 100)
+    mask = Bool[0, 0, 0, 0, 1, 1, 1, 0, 1, 1, 0, 0]
+    runs = similar(mask, Interval, 0)
+    push_runs!(runs, mask, 100)
     @test length(runs) == 2
 
     @test runs[1].range == 5:7
@@ -55,7 +78,8 @@ end
 end
 
 @testset "alternating pattern" begin
-    runs = find_runs(Bool[1, 0, 1, 0, 1])
+    runs = similar(Bool[1, 0, 1, 0, 1], Interval, 0)
+    push_runs!(runs, Bool[1, 0, 1, 0, 1], 0)
     @test length(runs) == 3
 
     @test runs[1].range == 1:1
@@ -69,7 +93,8 @@ end
 end
 
 @testset "runs at start, middle, end" begin
-    runs = find_runs(Bool[1, 1, 0, 1, 0, 1, 1])
+    runs = similar(Bool[1, 1, 0, 1, 0, 1, 1], Interval, 0)
+    push_runs!(runs, Bool[1, 1, 0, 1, 0, 1, 1], 0)
     @test length(runs) == 3
 
     @test runs[1].range == 1:2
@@ -83,26 +108,30 @@ end
 end
 
 @testset "long runs" begin
-    runs = find_runs(Bool[1, 1, 1, 1, 1, 0, 0, 0])
+    runs = similar(Bool[1, 1, 1, 1, 1, 0, 0, 0], Interval, 0)
+    push_runs!(runs, Bool[1, 1, 1, 1, 1, 0, 0, 0], 0)
     @test length(runs) == 1
     @test runs[1].range == 1:5
     @test runs[1].shift == 0
 
-    runs = find_runs(Bool[0, 0, 0, 1, 1, 1, 1])
+    runs = similar(Bool[0, 0, 0, 1, 1, 1, 1], Interval, 0)
+    push_runs!(runs, Bool[0, 0, 0, 1, 1, 1, 1], 0)
     @test length(runs) == 1
     @test runs[1].range == 4:7
     @test runs[1].shift == -3
 end
 
 @testset "runs with single-element gaps" begin
-    runs = find_runs(Bool[1, 1, 0, 1, 1])
+    runs = similar(Bool[1, 1, 0, 1, 1], Interval, 0)
+    push_runs!(runs, Bool[1, 1, 0, 1, 1], 0)
     @test length(runs) == 2
     @test runs[1].range == 1:2
     @test runs[1].shift == 0
     @test runs[2].range == 4:5
     @test runs[2].shift == -1
 
-    runs = find_runs(Bool[1, 1, 1, 0, 1, 1])
+    runs = similar(Bool[1, 1, 1, 0, 1, 1], Interval, 0)
+    push_runs!(runs, Bool[1, 1, 1, 0, 1, 1], 0)
     @test length(runs) == 2
     @test runs[1].range == 1:3
     @test runs[1].shift == 0
@@ -111,7 +140,8 @@ end
 end
 
 @testset "shift semantics with prior=0 (explicit)" begin
-    runs = find_runs(Bool[0, 0, 1, 1, 0, 1], 0)
+    runs = similar(Bool[0, 0, 1, 1, 0, 1], Interval, 0)
+    push_runs!(runs, Bool[0, 0, 1, 1, 0, 1], 0)
     @test length(runs) == 2
 
     @test runs[1].range == 3:4
@@ -122,7 +152,8 @@ end
 end
 
 @testset "shift semantics with negative prior" begin
-    runs = find_runs(Bool[1, 1, 0, 1], -10)
+    runs = similar(Bool[1, 1, 0, 1], Interval, 0)
+    push_runs!(runs, Bool[1, 1, 0, 1], -10)
     @test length(runs) == 2
 
     @test runs[1].range == 1:2
@@ -133,14 +164,17 @@ end
 end
 
 @testset "shift semantics with positive prior" begin
-    runs = find_runs(Bool[0, 1, 1], 5)
+    runs = similar(Bool[0, 1, 1], Interval, 0)
+    push_runs!(runs, Bool[0, 1, 1], 5)
     @test length(runs) == 1
     @test runs[1].range == 2:3
     @test runs[1].shift == 4  # 0 - 2 + 5 + 1 = 4
 end
 
 @testset "large sparse vector" begin
-    runs = find_runs(Bool[zeros(50)..., 1, 1, zeros(30)..., 1, zeros(20)...])
+    mask = Bool[zeros(50)..., 1, 1, zeros(30)..., 1, zeros(20)...]
+    runs = similar(mask, Interval, 0)
+    push_runs!(runs, mask, 0)
     @test length(runs) == 2
 
     @test runs[1].range == 51:52
@@ -151,7 +185,8 @@ end
 end
 
 @testset "many short runs" begin
-    runs = find_runs(Bool[1, 0, 1, 0, 1, 0, 1, 0])
+    runs = similar(Bool[1, 0, 1, 0, 1, 0, 1, 0], Interval, 0)
+    push_runs!(runs, Bool[1, 0, 1, 0, 1, 0, 1, 0], 0)
     @test length(runs) == 4
 
     @test runs[1].range == 1:1
@@ -170,7 +205,8 @@ end
 @testset "shift formula: n - start + prior + 1" begin
     # Verify: for any i ∈ run.range, i + run.shift is the 1-based linear
     # position of mask[i] in the compact data array.
-    runs = find_runs(Bool[1, 1, 0, 1])
+    runs = similar(Bool[1, 1, 0, 1], Interval, 0)
+    push_runs!(runs, Bool[1, 1, 0, 1], 0)
     @test length(runs) == 2
 
     # First run: n=0, start=1, prior=0 => shift = 0 - 1 + 0 + 1 = 0
@@ -181,8 +217,11 @@ end
 end
 
 @testset "complex mixed-length pattern" begin
-    runs = find_runs(Bool[1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1])
+    mask = Bool[1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 1]
+    runs = similar(mask, Interval, 0)
+    (n, m) = push_runs!(runs, mask, 0)
     @test length(runs) == 4
+    @test (n, m) == (7, 4)
 
     @test runs[1].range == 1:1
     @test runs[1].shift == 0
@@ -200,15 +239,18 @@ end
 @testset "trailing run with positive prior" begin
     # Single open run that closes only at end-of-array, plus a non-zero prior:
     # exercises the trailing-push path under a non-default offset.
-    runs = find_runs(Bool[0, 0, 1, 1, 1], 7)
+    runs = similar(Bool[0, 0, 1, 1, 1], Interval, 0)
+    (n, m) = push_runs!(runs, Bool[0, 0, 1, 1, 1], 7)
     @test length(runs) == 1
     @test runs[1].range == 3:5
     @test runs[1].shift == 5  # 0 - 3 + 7 + 1 = 5
+    @test (n, m) == (3, 1)
 end
 
 @testset "BitVector input" begin
     mask = BitVector([0, 0, 1, 1, 0, 1])
-    runs = find_runs(mask)
+    runs = similar(mask, Interval, 0)
+    push_runs!(runs, mask, 0)
     @test length(runs) == 2
     @test runs[1].range == 3:4
     @test runs[1].shift == -2
@@ -219,7 +261,8 @@ end
 @testset "OffsetArray input" begin
     # Indices -2..2; values at -2,-1,0,1,2 are 0,1,1,0,1
     mask = OffsetArray(Bool[0, 1, 1, 0, 1], -2:2)
-    runs = find_runs(mask)
+    runs = similar(mask, Interval, 0)
+    push_runs!(runs, mask, 0)
     @test length(runs) == 2
 
     # Run 1: range=-1:0, n=0, start=-1, shift = 0 - (-1) + 0 + 1 = 2
@@ -239,7 +282,8 @@ end
     compact = [i for i in eachindex(mask) if mask[i]]
     @test compact == [3, 4, 6, 7, 8]
 
-    runs = find_runs(mask)
+    runs = similar(mask, Interval, 0)
+    push_runs!(runs, mask, 0)
     for run in runs, i in run.range
         @test compact[i + run.shift] == i
     end
@@ -248,7 +292,8 @@ end
     # offset by `prior` cells worth of "earlier scanline" content.
     prior = 4
     compact_with_prior = vcat(fill(-1, prior), compact)
-    runs = find_runs(mask, prior)
+    runs = similar(mask, Interval, 0)
+    push_runs!(runs, mask, prior)
     for run in runs, i in run.range
         @test compact_with_prior[i + run.shift] == i
     end
