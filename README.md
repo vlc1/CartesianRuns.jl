@@ -1,5 +1,7 @@
 # CartesianRuns.jl
 
+[![docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://vlc1.github.io/CartesianRuns.jl/dev/)
+
 A Julia package providing a read-only `AbstractVector{CartesianIndex{N}}`
 view of the positions where a boolean mask is `true`, using
 [SAMURAI](https://github.com/hpc-maths/samurai)-style interval compression for
