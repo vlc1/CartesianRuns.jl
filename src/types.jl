@@ -40,7 +40,7 @@ shift(iv::Interval) = iv.compact.start - iv.mask.start
     CartesianRunIndices{N,M,I,O} <: AbstractVector{CartesianIndex{N}}
 
 A read-only `AbstractVector` view of the positions where an N-dimensional
-boolean mask is `true`, using SAMURAI-style interval compression.
+boolean mask is `true`, using [SAMURAI](https://github.com/hpc-maths/samurai)-style interval compression.
 
 # Type parameters
 
@@ -56,6 +56,8 @@ boolean mask is `true`, using SAMURAI-style interval compression.
 - `offsets::NTuple{M,O}`: 1-based CSR offset arrays connecting active cells
   in dimension `d+1` to their ranges in `intervals[d]`.
   Empty tuple for `N = 1`.
+- `domain::NTuple{N,UnitRange{Int}}`: axes of the original boolean mask,
+  stored so that set operations can verify compatibility between operands.
 
 # Construction
 
@@ -67,24 +69,34 @@ struct CartesianRunIndices{N,M,I<:AbstractVector{Interval},O<:AbstractVector{Int
         AbstractVector{CartesianIndex{N}}
     intervals::NTuple{N,I}
     offsets::NTuple{M,O}
+    domain::NTuple{N,UnitRange{Int}}
 
     # General inner constructor (N ≥ 2, M ≥ 1)
     function CartesianRunIndices(
-        intervals::NTuple{N,I}, offsets::NTuple{M,O}
+        intervals::NTuple{N,I}, offsets::NTuple{M,O}, domain::NTuple{N,UnitRange{Int}}
     ) where {N,M,I<:AbstractVector{Interval},O<:AbstractVector{Int}}
         M + 1 == N || throw(ArgumentError(
             "length(offsets) must equal ndims - 1: got $M offsets for N=$N"
         ))
-        new{N,M,I,O}(intervals, offsets)
+        new{N,M,I,O}(intervals, offsets, domain)
     end
 
     # Special inner constructor for 1D (empty offsets; O cannot be inferred)
     function CartesianRunIndices(
-        intervals::NTuple{1,I}, ::Tuple{}
+        intervals::NTuple{1,I}, ::Tuple{}, domain::NTuple{1,UnitRange{Int}}
     ) where {I<:AbstractVector{Interval}}
-        new{1,0,I,Vector{Int}}(intervals, ())
+        new{1,0,I,Vector{Int}}(intervals, (), domain)
     end
 end
+
+"""
+    domain(cri::CartesianRunIndices{N}) -> NTuple{N, UnitRange{Int}}
+
+Return the axes of the boolean mask from which `cri` was constructed.
+Used by set operations (`intersect`, `setdiff`, `union`) to verify that both
+operands come from the same mask domain.
+"""
+domain(cri::CartesianRunIndices) = cri.domain
 
 # --- AbstractVector interface ---
 
@@ -218,10 +230,11 @@ end
 function CartesianRunIndices(mask::AbstractVector{Bool})
     buf = similar(mask, Interval, 0)
     _build_runs!(buf, mask, 0)
-    CartesianRunIndices((buf,), ())
+    CartesianRunIndices((buf,), (), (first(axes(mask, 1)):last(axes(mask, 1)),))
 end
 
 function CartesianRunIndices(mask::AbstractArray{Bool,N}) where {N}
     intervals, offsets = _build_cartesian_runs(mask)
-    CartesianRunIndices(intervals, offsets)
+    dom = map(ax -> first(ax):last(ax), axes(mask))
+    CartesianRunIndices(intervals, offsets, dom)
 end

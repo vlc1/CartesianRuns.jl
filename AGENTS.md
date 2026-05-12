@@ -3,14 +3,15 @@
 ## Project goal
 
 Build a Julia package providing a read-only `AbstractVector{CartesianIndex{N}}`
-view of the positions where a boolean mask is `true`, using SAMURAI-style
-interval compression for arbitrary `N`.
+view of the positions where a boolean mask is `true`, using SAMURAI-style interval
+compression for arbitrary `N`.
 
 - Package name: **`CartesianRuns.jl`**.
-- Exported: `Interval`, `CartesianRunIndices{N} <: AbstractVector{CartesianIndex{N}}`.
+- Exported: `Interval`, `CartesianRunIndices{N} <: AbstractVector{CartesianIndex{N}}`,
+  `domain`, `shift`, `expand`, `complement`, `intersect`, `setdiff`, `union`.
 
-Reference: SAMURAI ([repo](https://github.com/hpc-maths/samurai),
-[docs](https://hpc-math-samurai.readthedocs.io/)).
+Reference: [SAMURAI](https://github.com/hpc-maths/samurai)
+([docs](https://hpc-math-samurai.readthedocs.io/)).
 
 ## Files
 
@@ -19,6 +20,12 @@ Reference: SAMURAI ([repo](https://github.com/hpc-maths/samurai),
 | `src/CartesianRuns.jl`        | Module entry; exports + `include`s                          |
 | `src/types.jl`                | `Interval` struct; `CartesianRunIndices{N}` + `AbstractVector` interface |
 | `src/construction.jl`         | `_build_runs!` (1D); `_build_fused!`; `_build_cartesian_runs` |
+| `src/common.jl`               | Shared helpers: `_check_domain`, `_inner_slice`                 |
+| `src/expand.jl`          | `expand`: `_expand_runs!`, `_expand_fused!`      |
+| `src/complement.jl`           | `complement`: `_complement_runs!`, `_complement_fused!`         |
+| `src/intersect.jl`            | `intersect`: `_intersect_runs!`, `_intersect_fused!`            |
+| `src/setdiff.jl`              | `setdiff`: `_setdiff_runs!`, `_setdiff_fused!`                  |
+| `src/union.jl`                | `union`: `_union_runs!`, `_union_fused!`                        |
 | `test/runtests.jl`            | Test suite (run via `Pkg.test()`)                           |
 | `docs/make.jl`                | Documenter build + deploy script                            |
 | `docs/src/index.md`           | Single-page API reference                                   |
@@ -26,7 +33,6 @@ Reference: SAMURAI ([repo](https://github.com/hpc-maths/samurai),
 | `.github/workflows/CI.yml`    | CI on Julia 1.10, 1.12, pre (Ubuntu)                        |
 | `.github/workflows/Docs.yml`  | Docs build + deploy to GitHub Pages                         |
 | `.github/workflows/TagBot.yml`| Release tagging                                             |
-| `PLAN.md`                     | Short scratch notes for the next refactor                   |
 
 ## Sticky decisions (do not re-litigate)
 
@@ -70,6 +76,52 @@ Reference: SAMURAI ([repo](https://github.com/hpc-maths/samurai),
 
 1. Optional SAMURAI-flavored API: `at(::Interval, ::Int) = i + shift` plus
    a `@` operator/macro.
+
+## Set operations, complement and expand
+
+`intersect`, `setdiff`, `union`, `complement`, and `expand` each live in
+their own source file (`src/intersect.jl`, `src/setdiff.jl`, `src/union.jl`,
+`src/complement.jl`, `src/expand.jl`). Shared helpers (`_check_domain`,
+`_inner_slice`) are in `src/common.jl`, which is included first.
+Binary operations require `domain(a) == domain(b)`.
+
+### Three-layer dispatch pattern (all operations)
+
+| Layer | Name pattern | Role |
+|-------|-------------|------|
+| Public API | `op(cri, ...)` | Domain check, buffer allocation, single top-level call |
+| 1D kernel | `_op_runs!(out, a_ivs, a_lo, a_hi, ..., prior)` | Flat sweep on one slice of `AbstractVector{Interval}` |
+| N-D kernel | `_op_fused!(out_ivs, out_offs, a_ivs, a_offs, ...)` | Recursive dimensional peeling; dispatches to 1D base at bottom |
+
+Dimension peeling passes cost-free `SubArray`s (via `view`) rather than copies.
+
+### `_op_fused!` dispatch
+
+Two methods, selected by Julia on tuple length:
+
+- **1D base**: `a_ivs::NTuple{1,...}`, `a_offs::Tuple{}` → calls `_op_runs!` on `a_ivs[1]`, returns `(x_prior + n, n, m)`.
+- **N-D case**: `a_ivs::NTuple{N,...}`, `a_offs::NTuple{M,...}` where N,M≥2 → peels last dimension:
+  - `a_outer = last(a_ivs)`, `a_off = last(a_offs)` — outermost interval vector + its CSR offsets.
+  - `front_a = Base.front(a_ivs)`, `front_ao = Base.front(a_offs)` — passed to the recursive call.
+  - `_inner_slice(iv, offs, r)` maps row `r` within outer interval `iv` to a `(lo, hi)` slice of the inner interval vector.
+  - Outer run detection: `prev`, `start`, `n_d`, `m_d`; shift formula `n_d - start + d_prior + 1`.
+
+### Loop structure by operation
+
+| Operation | Category | Outer loop | Recurse when |
+|-----------|----------|-----------|--------------|
+| `_build_fused!` | unary | `for r in axes(mask, D)` — all rows | always |
+| `_expand_fused!` | unary | same all-rows loop | always |
+| `_complement_fused!` | unary | `for r in last(domain)` — all rows; single pointer `i` advances through A | always |
+| `_intersect_fused!` | binary | `while ar < typemax \|\| br < typemax` | both A and B cover `r` |
+| `_setdiff_fused!` | binary | same ar/br | A covers `r` |
+| `_union_fused!` | binary | same ar/br | always (at least one covers `r`) |
+
+### Key invariants
+
+- **`x_prior`**: cumulative dim-1 (x) compact count, threaded through every recursive call as the first return element.  Each level's `inner_prior` is a local accumulator for the level below.
+- **Gap check** (binary ops only): at the TOP of the `while` loop body, before computing inner slices: `if prev && r > last_r + 1` → close the open outer run at `last_r`. Prevents merging runs across rows skipped by the ar/br sweep.
+- **`last_r`** is updated unconditionally on every visited row; `prev` guards whether the gap check fires.
 
 ## Conventions
 
