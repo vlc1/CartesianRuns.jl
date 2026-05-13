@@ -46,7 +46,6 @@ end
     mask1 = Bool[0, 1, 1, 0, 1, 0]
     dom1  = (2:5,)
     cri1  = CartesianRunIndices(mask1, dom1)
-    @test domain(cri1) == dom1
     @test Set(collect(cri1)) == Set(CartesianIndex.(findall(view(mask1, 2:5)) .+ 1))
     @test collect(cri1) == CartesianIndex.(findall(@view mask1[2:5]) .+ 1)
 
@@ -54,7 +53,6 @@ end
     mask2 = Bool[1 0 1; 0 1 0; 1 0 1]
     dom2  = (1:2, 1:2)
     cri2  = CartesianRunIndices(mask2, dom2)
-    @test domain(cri2) == dom2
     sub2  = view(mask2, 1:2, 1:2)
     @test collect(cri2) == findall(sub2)
 
@@ -88,21 +86,13 @@ end
                  Bool[1 0 1; 0 1 0; 1 0 1],
                  rand(Bool, 4, 5, 3),
                  falses(3, 3), trues(3, 3))
-        @test expand(CartesianRunIndices(mask)) == mask
+        @test expand(CartesianRunIndices(mask), axes(mask)) == mask
     end
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Set operations — shared infrastructure
 # ──────────────────────────────────────────────────────────────────────────────
-
-@testset "domain check" begin
-    a = CartesianRunIndices(Bool[1, 0, 1])
-    b = CartesianRunIndices(Bool[1, 1, 0, 0])
-    @test_throws ArgumentError intersect(a, b)
-    @test_throws ArgumentError setdiff(a, b)
-    @test_throws ArgumentError union(a, b)
-end
 
 # ──────────────────────────────────────────────────────────────────────────────
 # complement
@@ -114,17 +104,16 @@ end
     ("3D", rand(Bool, 4, 5, 3)),
 )
     cri = CartesianRunIndices(mask)
-    c   = complement(cri)
-    @test domain(c) == domain(cri)
+    c   = complement(cri, axes(mask))
     @test _to_set(c) == _to_set(CartesianRunIndices(.!mask))
-    @test length(cri) + length(c) == prod(length.(domain(cri)))
-    @test _to_set(complement(c)) == _to_set(cri)          # involution
+    @test length(cri) + length(c) == prod(size(mask))
+    @test _to_set(complement(c, axes(mask))) == _to_set(cri)   # involution
 end
 
 @testset "complement: trivial" begin
-    @test _to_set(complement(CartesianRunIndices(falses(5)))) ==
+    @test _to_set(complement(CartesianRunIndices(falses(5)), (1:5,))) ==
           _to_set(CartesianRunIndices(trues(5)))
-    @test isempty(complement(CartesianRunIndices(trues(5))))
+    @test isempty(complement(CartesianRunIndices(trues(5)), (1:5,)))
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -140,7 +129,6 @@ end
     SA, SB = _to_set(A), _to_set(B)
     for (op, ref) in ((intersect, intersect), (setdiff, setdiff), (union, union))
         C = op(A, B)
-        @test domain(C) == domain(A)
         @test _to_set(C) == ref(SA, SB)
     end
 end

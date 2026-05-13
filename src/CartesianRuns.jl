@@ -3,7 +3,6 @@ module CartesianRuns
 export Interval,
        CartesianRunIndices,
        shift,
-       domain,
        complement,
        expand
 

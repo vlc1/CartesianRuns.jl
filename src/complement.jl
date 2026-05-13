@@ -1,9 +1,9 @@
 function _complement_runs!(
     out::AbstractVector{Interval},
     a_ivs::AbstractVector{Interval}, a_lo::Int, a_hi::Int,
-    x_range::UnitRange{Int}, prior::Int,
+    x_range::AbstractUnitRange{Int}, prior::Int,
 )
-    pos = x_range.start
+    pos = first(x_range)
     n = 0; m = 0
     for k in a_lo:a_hi
         iv = a_ivs[k]
@@ -13,9 +13,9 @@ function _complement_runs!(
         end
         pos = iv.mask.stop + 1
     end
-    if pos <= x_range.stop
-        push!(out, Interval(pos:x_range.stop, n - pos + prior + 1))
-        n += x_range.stop - pos + 1; m += 1
+    if pos <= last(x_range)
+        push!(out, Interval(pos:last(x_range), n - pos + prior + 1))
+        n += last(x_range) - pos + 1; m += 1
     end
     (n, m)
 end
@@ -82,25 +82,27 @@ function _complement_fused!(
 end
 
 """
-    complement(cri::CartesianRunIndices{N}) -> CartesianRunIndices{N}
+    complement(cri::CartesianRunIndices{N}, domain::NTuple{N,<:AbstractUnitRange{Int}}) -> CartesianRunIndices{N}
 
-Return a `CartesianRunIndices` containing every position in `domain(cri)` that
+Return a `CartesianRunIndices` containing every position in `domain` that
 is **not** in `cri`, computed directly from the interval representation.
 """
-function complement(cri::CartesianRunIndices{1})
+function complement(cri::CartesianRunIndices{1},
+                    domain::NTuple{1,<:AbstractUnitRange{Int}})
     out = similar(cri.intervals[1], Interval, 0)
     _complement_runs!(out, cri.intervals[1], 1, length(cri.intervals[1]),
-                      cri.domain[1], 0)
-    CartesianRunIndices((out,), (), cri.domain)
+                      domain[1], 0)
+    CartesianRunIndices((out,), ())
 end
 
-function complement(cri::CartesianRunIndices{N}) where {N}
+function complement(cri::CartesianRunIndices{N},
+                    domain::NTuple{N,<:AbstractUnitRange{Int}}) where {N}
     out_ivs  = ntuple(_ -> similar(cri.intervals[1], Interval, 0), Val(N))
     out_offs = ntuple(Val(N - 1)) do _
         o = similar(cri.intervals[1], Int, 1); o[begin] = 1; o
     end
     _complement_fused!(out_ivs, out_offs,
                        cri.intervals, cri.offsets, 1, length(last(cri.intervals)),
-                       0, 0, cri.domain)
-    CartesianRunIndices(out_ivs, out_offs, cri.domain)
+                       0, 0, domain)
+    CartesianRunIndices(out_ivs, out_offs)
 end

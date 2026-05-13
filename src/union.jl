@@ -106,11 +106,10 @@ function _union_fused!(
 end
 
 function Base.union(a::CartesianRunIndices{1}, b::CartesianRunIndices{1})
-    _check_domain(a, b)
     out = similar(a.intervals[1], Interval, 0)
     _union_runs!(out, a.intervals[1], 1, length(a.intervals[1]),
                       b.intervals[1], 1, length(b.intervals[1]), 0)
-    CartesianRunIndices((out,), (), a.domain)
+    CartesianRunIndices((out,), ())
 end
 
 """
@@ -118,10 +117,8 @@ end
 
 Return a `CartesianRunIndices` containing every `CartesianIndex` that is `true`
 in `a`, in `b`, or in both.  Overlapping or adjacent runs are merged.
-Both operands must have the same `domain`.
 """
 function Base.union(a::CartesianRunIndices{N}, b::CartesianRunIndices{N}) where {N}
-    _check_domain(a, b)
     out_ivs  = ntuple(_ -> similar(a.intervals[1], Interval, 0), Val(N))
     out_offs = ntuple(Val(N - 1)) do _
         o = similar(a.intervals[1], Int, 1); o[begin] = 1; o
@@ -130,5 +127,5 @@ function Base.union(a::CartesianRunIndices{N}, b::CartesianRunIndices{N}) where 
                   a.intervals, a.offsets, 1, length(last(a.intervals)),
                   b.intervals, b.offsets, 1, length(last(b.intervals)),
                   0, 0)
-    CartesianRunIndices(out_ivs, out_offs, a.domain)
+    CartesianRunIndices(out_ivs, out_offs)
 end

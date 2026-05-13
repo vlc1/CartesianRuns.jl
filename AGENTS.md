@@ -8,7 +8,7 @@ compression for arbitrary `N`.
 
 - Package name: **`CartesianRuns.jl`**.
 - Exported: `Interval`, `CartesianRunIndices{N} <: AbstractVector{CartesianIndex{N}}`,
-  `domain`, `shift`, `expand`, `complement`, `intersect`, `setdiff`, `union`.
+  `shift`, `expand`, `complement`, `intersect`, `setdiff`, `union`.
 
 Reference: [SAMURAI](https://github.com/hpc-maths/samurai)
 ([docs](https://hpc-math-samurai.readthedocs.io/)).
@@ -20,7 +20,7 @@ Reference: [SAMURAI](https://github.com/hpc-maths/samurai)
 | `src/CartesianRuns.jl`        | Module entry; exports + `include`s                          |
 | `src/types.jl`                | `Interval` struct; `CartesianRunIndices{N}` + `AbstractVector` interface |
 | `src/construction.jl`         | `_build_runs!` (1D); `_build_fused!`; `_build_cartesian_runs` |
-| `src/common.jl`               | Shared helpers: `_check_domain`, `_inner_slice`                 |
+| `src/common.jl`               | Shared helpers: `_inner_slice`                                  |
 | `src/expand.jl`          | `expand`: `_expand_runs!`, `_expand_fused!`      |
 | `src/complement.jl`           | `complement`: `_complement_runs!`, `_complement_fused!`         |
 | `src/intersect.jl`            | `intersect`: `_intersect_runs!`, `_intersect_fused!`            |
@@ -78,8 +78,9 @@ that each `domain[d]` is a subset of `axes(mask, d)`, converts to plain
 `UnitRange{Int}`, then calls `_build_cartesian_runs(mask, dom)` which passes
 `dom` as the `domain` NTuple through `_build_fused!`, so the kernels iterate
 only over `domain[d]` without any array wrapping or post-processing.
+The stored `domain` field is gone; the restricted constructor calls
+`_build_cartesian_runs(mask, dom)` directly and does not retain `dom`.
 Validation: `ArgumentError` if any `domain[d]` is out of `axes(mask, d)`.
-The stored `domain` on the result is `map(r -> Int(first(r)):Int(last(r)), domain)`.
 
 ### N-D construction — key invariants
 
@@ -98,15 +99,19 @@ The stored `domain` on the result is `map(r -> Int(first(r)):Int(last(r)), domai
 
 `intersect`, `setdiff`, `union`, `complement`, and `expand` each live in
 their own source file (`src/intersect.jl`, `src/setdiff.jl`, `src/union.jl`,
-`src/complement.jl`, `src/expand.jl`). Shared helpers (`_check_domain`,
-`_inner_slice`) are in `src/common.jl`, which is included first.
-Binary operations require `domain(a) == domain(b)`.
+`src/complement.jl`, `src/expand.jl`). The shared helper `_inner_slice` is
+in `src/common.jl`, which is included first.
+
+`complement` and `expand` take an explicit `domain` argument (a
+`NTuple{N,<:AbstractUnitRange{Int}}`); the caller supplies the "universe".
+Binary operations do not check domain compatibility — that is the caller's
+responsibility.
 
 ### Three-layer dispatch pattern (all operations)
 
 | Layer | Name pattern | Role |
 |-------|-------------|------|
-| Public API | `op(cri, ...)` | Domain check, buffer allocation, single top-level call |
+| Public API | `op(cri, ...)` | Buffer allocation, single top-level call |
 | 1D kernel | `_op_runs!(out, a_ivs, a_lo, a_hi, ..., prior)` | Flat sweep on one slice of `AbstractVector{Interval}` |
 | N-D kernel | `_op_fused!(out_ivs, out_offs, a_ivs, a_offs, ...)` | Recursive dimensional peeling; dispatches to 1D base at bottom |
 

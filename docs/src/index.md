@@ -22,11 +22,11 @@ Two coordinate spaces are distinguished throughout:
 | `ci ∈ cri`  | mask → compact (membership) | `Base.in`   |
 
 The representation itself is also dual: `CartesianRunIndices(mask)` compresses
-a boolean mask into interval form, and `expand(cri)` reconstructs the mask
-exactly. They are exact inverses:
+a boolean mask into interval form, and `expand(cri, axes(mask))` reconstructs
+the mask exactly. They are exact inverses:
 
 ```julia
-expand(CartesianRunIndices(mask)) == mask   # always true
+expand(CartesianRunIndices(mask), axes(mask)) == mask   # always true
 ```
 
 This duality mirrors the philosophy of
@@ -56,25 +56,22 @@ interval representation — no boolean mask is ever materialised.
 mask = Bool[0 1; 1 1; 0 1]
 cri  = CartesianRunIndices(mask)
 
-expand(cri) == mask        # true — exact inverse of constructor
-complement(cri)            # positions in domain(cri) not in cri
+expand(cri, axes(mask)) == mask    # true — exact inverse of constructor
+complement(cri, axes(mask))        # positions in axes(mask) not in cri
 ```
 
-`CartesianRunIndices(mask)` and `expand` are exact inverses.
+`CartesianRunIndices(mask)` and `expand(cri, axes(mask))` are exact inverses.
 
 A second constructor restricts the scan to a sub-domain:
 
 ```julia
 cri_sub = CartesianRunIndices(mask, (1:2, 1:2))  # only rows 1:2, cols 1:2
-domain(cri_sub)  # (1:2, 1:2)
 ```
 
 `domain[d]` must be a subset of `axes(mask, d)` for every dimension;
 an `ArgumentError` is thrown otherwise.
 
 ### Binary operations
-
-Binary operations require both operands to share the same `domain`.
 
 ```julia
 A = CartesianRunIndices(Bool[0 1; 1 1; 0 1])
@@ -91,7 +88,6 @@ setdiff(A, B)    # positions in A but not in B
 Interval
 shift
 CartesianRunIndices
-domain
 Base.size(::CartesianRunIndices)
 Base.getindex(::CartesianRunIndices, ::Int)
 Base.in(::CartesianIndex{N}, ::CartesianRunIndices{N}) where {N}

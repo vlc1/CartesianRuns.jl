@@ -101,21 +101,19 @@ function _intersect_fused!(
 end
 
 function Base.intersect(a::CartesianRunIndices{1}, b::CartesianRunIndices{1})
-    _check_domain(a, b)
     out = similar(a.intervals[1], Interval, 0)
     _intersect_runs!(out, a.intervals[1], 1, length(a.intervals[1]),
                           b.intervals[1], 1, length(b.intervals[1]), 0)
-    CartesianRunIndices((out,), (), a.domain)
+    CartesianRunIndices((out,), ())
 end
 
 """
     intersect(a::CartesianRunIndices{N}, b::CartesianRunIndices{N}) -> CartesianRunIndices{N}
 
 Return a `CartesianRunIndices` containing every `CartesianIndex` that is `true`
-in **both** `a` and `b`.  Both operands must have the same `domain`.
+in **both** `a` and `b`.
 """
 function Base.intersect(a::CartesianRunIndices{N}, b::CartesianRunIndices{N}) where {N}
-    _check_domain(a, b)
     out_ivs  = ntuple(_ -> similar(a.intervals[1], Interval, 0), Val(N))
     out_offs = ntuple(Val(N - 1)) do _
         o = similar(a.intervals[1], Int, 1); o[begin] = 1; o
@@ -124,5 +122,5 @@ function Base.intersect(a::CartesianRunIndices{N}, b::CartesianRunIndices{N}) wh
                       a.intervals, a.offsets, 1, length(last(a.intervals)),
                       b.intervals, b.offsets, 1, length(last(b.intervals)),
                       0, 0)
-    CartesianRunIndices(out_ivs, out_offs, a.domain)
+    CartesianRunIndices(out_ivs, out_offs)
 end

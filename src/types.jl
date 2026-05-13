@@ -56,8 +56,6 @@ boolean mask is `true`, using [SAMURAI](https://github.com/hpc-maths/samurai)-st
 - `offsets::NTuple{M,O}`: 1-based CSR offset arrays connecting active cells
   in dimension `d+1` to their ranges in `intervals[d]`.
   Empty tuple for `N = 1`.
-- `domain::NTuple{N,UnitRange{Int}}`: axes of the original boolean mask,
-  stored so that set operations can verify compatibility between operands.
 
 # Construction
 
@@ -71,40 +69,30 @@ Construct from a boolean mask, restricting the scan to positions within
 `domain`. Each element of `domain` must be a subset of the corresponding
 axis of `mask`; an `ArgumentError` is thrown otherwise. The returned
 `CartesianRunIndices` contains only the `true` cells of `mask` that lie
-within `domain`, and reports `domain` as its domain.
+within `domain`.
 """
 struct CartesianRunIndices{N,M,I<:AbstractVector{Interval},O<:AbstractVector{Int}} <:
         AbstractVector{CartesianIndex{N}}
     intervals::NTuple{N,I}
     offsets::NTuple{M,O}
-    domain::NTuple{N,UnitRange{Int}}
 
     # General inner constructor (N ≥ 2, M ≥ 1)
     function CartesianRunIndices(
-        intervals::NTuple{N,I}, offsets::NTuple{M,O}, domain::NTuple{N,UnitRange{Int}}
+        intervals::NTuple{N,I}, offsets::NTuple{M,O}
     ) where {N,M,I<:AbstractVector{Interval},O<:AbstractVector{Int}}
         M + 1 == N || throw(ArgumentError(
             "length(offsets) must equal ndims - 1: got $M offsets for N=$N"
         ))
-        new{N,M,I,O}(intervals, offsets, domain)
+        new{N,M,I,O}(intervals, offsets)
     end
 
     # Special inner constructor for 1D (empty offsets; O cannot be inferred)
     function CartesianRunIndices(
-        intervals::NTuple{1,I}, ::Tuple{}, domain::NTuple{1,UnitRange{Int}}
+        intervals::NTuple{1,I}, ::Tuple{}
     ) where {I<:AbstractVector{Interval}}
-        new{1,0,I,Vector{Int}}(intervals, (), domain)
+        new{1,0,I,Vector{Int}}(intervals, ())
     end
 end
-
-"""
-    domain(cri::CartesianRunIndices{N}) -> NTuple{N, UnitRange{Int}}
-
-Return the axes of the boolean mask from which `cri` was constructed.
-Used by set operations (`intersect`, `setdiff`, `union`) to verify that both
-operands come from the same mask domain.
-"""
-domain(cri::CartesianRunIndices) = cri.domain
 
 # --- AbstractVector interface ---
 
@@ -238,13 +226,12 @@ end
 function CartesianRunIndices(mask::AbstractVector{Bool})
     buf = similar(mask, Interval, 0)
     _build_runs!(buf, mask, 0)
-    CartesianRunIndices((buf,), (), (first(axes(mask, 1)):last(axes(mask, 1)),))
+    CartesianRunIndices((buf,), ())
 end
 
 function CartesianRunIndices(mask::AbstractArray{Bool,N}) where {N}
     intervals, offsets = _build_cartesian_runs(mask)
-    dom = map(ax -> first(ax):last(ax), axes(mask))
-    CartesianRunIndices(intervals, offsets, dom)
+    CartesianRunIndices(intervals, offsets)
 end
 
 function CartesianRunIndices(
@@ -259,5 +246,5 @@ function CartesianRunIndices(
     end
     dom = map(r -> Int(first(r)):Int(last(r)), domain)
     intervals, offsets = _build_cartesian_runs(mask, dom)
-    CartesianRunIndices(intervals, offsets, dom)
+    CartesianRunIndices(intervals, offsets)
 end
