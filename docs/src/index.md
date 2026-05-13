@@ -62,6 +62,16 @@ complement(cri)            # positions in domain(cri) not in cri
 
 `CartesianRunIndices(mask)` and `expand` are exact inverses.
 
+A second constructor restricts the scan to a sub-domain:
+
+```julia
+cri_sub = CartesianRunIndices(mask, (1:2, 1:2))  # only rows 1:2, cols 1:2
+domain(cri_sub)  # (1:2, 1:2)
+```
+
+`domain[d]` must be a subset of `axes(mask, d)` for every dimension;
+an `ArgumentError` is thrown otherwise.
+
 ### Binary operations
 
 Binary operations require both operands to share the same `domain`.

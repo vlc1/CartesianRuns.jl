@@ -64,6 +64,14 @@ boolean mask is `true`, using [SAMURAI](https://github.com/hpc-maths/samurai)-st
     CartesianRunIndices(mask::AbstractArray{Bool,N}) -> CartesianRunIndices
 
 Construct from a boolean mask of any dimension.
+
+    CartesianRunIndices(mask::AbstractArray{Bool,N}, domain::NTuple{N,AbstractUnitRange{Int}}) -> CartesianRunIndices
+
+Construct from a boolean mask, restricting the scan to positions within
+`domain`. Each element of `domain` must be a subset of the corresponding
+axis of `mask`; an `ArgumentError` is thrown otherwise. The returned
+`CartesianRunIndices` contains only the `true` cells of `mask` that lie
+within `domain`, and reports `domain` as its domain.
 """
 struct CartesianRunIndices{N,M,I<:AbstractVector{Interval},O<:AbstractVector{Int}} <:
         AbstractVector{CartesianIndex{N}}
@@ -236,5 +244,20 @@ end
 function CartesianRunIndices(mask::AbstractArray{Bool,N}) where {N}
     intervals, offsets = _build_cartesian_runs(mask)
     dom = map(ax -> first(ax):last(ax), axes(mask))
+    CartesianRunIndices(intervals, offsets, dom)
+end
+
+function CartesianRunIndices(
+    mask::AbstractArray{Bool,N},
+    domain::NTuple{N,<:AbstractUnitRange{Int}},
+) where {N}
+    for d in 1:N
+        ax = axes(mask, d)
+        dm = domain[d]
+        (first(dm) >= first(ax) && last(dm) <= last(ax)) || throw(ArgumentError(
+            "domain[$d] = $dm is not a subset of axes(mask, $d) = $ax"))
+    end
+    dom = map(r -> Int(first(r)):Int(last(r)), domain)
+    intervals, offsets = _build_cartesian_runs(mask, dom)
     CartesianRunIndices(intervals, offsets, dom)
 end

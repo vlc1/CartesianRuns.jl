@@ -41,6 +41,33 @@ end
     @test CartesianRunIndices(m)[1] == CartesianIndex(2, 3)
 end
 
+@testset "construction: domain" begin
+    # 1D: restrict to a subrange
+    mask1 = Bool[0, 1, 1, 0, 1, 0]
+    dom1  = (2:5,)
+    cri1  = CartesianRunIndices(mask1, dom1)
+    @test domain(cri1) == dom1
+    @test Set(collect(cri1)) == Set(CartesianIndex.(findall(view(mask1, 2:5)) .+ 1))
+    @test collect(cri1) == CartesianIndex.(findall(@view mask1[2:5]) .+ 1)
+
+    # 2D: restrict to a sub-rectangle
+    mask2 = Bool[1 0 1; 0 1 0; 1 0 1]
+    dom2  = (1:2, 1:2)
+    cri2  = CartesianRunIndices(mask2, dom2)
+    @test domain(cri2) == dom2
+    sub2  = view(mask2, 1:2, 1:2)
+    @test collect(cri2) == findall(sub2)
+
+    # full-domain constructor is equivalent to no-domain constructor
+    mask3 = rand(Bool, 4, 5)
+    @test collect(CartesianRunIndices(mask3, axes(mask3))) ==
+          collect(CartesianRunIndices(mask3))
+
+    # out-of-bounds domain throws
+    @test_throws ArgumentError CartesianRunIndices(mask2, (0:2, 1:2))
+    @test_throws ArgumentError CartesianRunIndices(mask2, (1:2, 1:4))
+end
+
 @testset "Base.in" begin
     for mask in (Bool[0, 1, 1, 0, 1, 0, 0, 1, 1, 1],
                  Bool[1 0 1; 0 1 0; 1 1 0; 0 0 1],

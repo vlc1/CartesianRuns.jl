@@ -29,7 +29,7 @@ Reference: [SAMURAI](https://github.com/hpc-maths/samurai)
 | `test/runtests.jl`            | Test suite (run via `Pkg.test()`)                           |
 | `docs/make.jl`                | Documenter build + deploy script                            |
 | `docs/src/index.md`           | Single-page API reference                                   |
-| `Project.toml`                | Deps: `OffsetArrays`; test extras: `Test`                   |
+| `Project.toml`                | No runtime deps; test extras: `Test`                        |
 | `.github/workflows/CI.yml`    | CI on Julia 1.10, 1.12, pre (Ubuntu)                        |
 | `.github/workflows/Docs.yml`  | Docs build + deploy to GitHub Pages                         |
 | `.github/workflows/TagBot.yml`| Release tagging                                             |
@@ -43,26 +43,43 @@ Reference: [SAMURAI](https://github.com/hpc-maths/samurai)
   invariant `length(mask) == length(compact)` is enforced by construction.
 - `shift(iv::Interval)` (exported) returns `iv.compact.start - iv.mask.start`.
 
-### `_build_runs!(runs, mask::AbstractVector{Bool}, prior::Int)` (internal)
+### `_build_runs!(runs, mask::AbstractVector{Bool}, range::AbstractUnitRange{Int}, prior::Int)` (internal)
 
-- Iterator-based via `pairs(IndexLinear(), mask)`.
+- Iterates `for i in range; val = mask[i]` — `i` is always in original mask-space coordinates.
 - State: `prev`, `start`, `n` (cumulative trues), `m` (runs pushed).
+- `range`: subset of `axes(mask, 1)` to scan; passing `axes(mask, 1)` gives the full scan.
 - `prior`: cumulative trues from prior scanlines; pass `0` for standalone 1D.
 - Returns `(n, m)::Tuple{Int,Int}`. Shift formula: `shift = n - start + prior + 1`.
-- No `@inbounds` — iterator avoids bounds checks.
+- Backward-compat 3-arg wrapper: `_build_runs!(runs, mask, prior)` passes `axes(mask, 1)`.
 
 ### `CartesianRunIndices{N}`
 
 - Stores `intervals::NTuple{N, AbstractVector{Interval}}` and
   `offsets::NTuple{N-1, AbstractVector{Int}}` (CSR, 1-based, pre-seeded with `[1]`).
-- Construction: `_build_cartesian_runs` pre-allocates all buffers, then fills
-  them in a single fused pass via `_build_fused!` (no intermediate allocations).
-- `_build_fused!` is a two-method recursive function: D=1 base calls
-  `_build_runs!`; D≥2 peels the outermost axis, keeping all run-detection state
-  (`prev`, `start`, `n_d`, `m_d`, `inner_prior`) as local stack variables.
+- Construction: `_build_cartesian_runs(mask[, domain])` pre-allocates all buffers,
+  then fills them in a single fused pass via `_build_fused!(ivs, offs, 0, 0, mask, domain)`
+  (no intermediate allocations).
+- `_build_fused!` is a two-method recursive function dispatching on NTuple length
+  of `domain`: D=1 base calls `_build_runs!(ivs[1], mask, domain[1], x_prior)`;
+  D≥2 iterates `domain[D]`, keeps all run-detection state (`prev`, `start`, `n_d`,
+  `m_d`, `inner_prior`) as local stack variables, and recurses with `Base.front(domain)`.
 - `getindex(cri, k)`: binary-search `_search_compact` to locate the x-interval,
   then recurse via `_recover` through the offset tables to reconstruct
   `CartesianIndex{N}`.
+
+#### Domain-restricted constructor
+
+```julia
+CartesianRunIndices(mask, domain::NTuple{N,AbstractUnitRange{Int}})
+```
+
+Restricts the scan to `true` cells within `domain`. Implementation: validates
+that each `domain[d]` is a subset of `axes(mask, d)`, converts to plain
+`UnitRange{Int}`, then calls `_build_cartesian_runs(mask, dom)` which passes
+`dom` as the `domain` NTuple through `_build_fused!`, so the kernels iterate
+only over `domain[d]` without any array wrapping or post-processing.
+Validation: `ArgumentError` if any `domain[d]` is out of `axes(mask, d)`.
+The stored `domain` on the result is `map(r -> Int(first(r)):Int(last(r)), domain)`.
 
 ### N-D construction — key invariants
 
@@ -110,7 +127,7 @@ Two methods, selected by Julia on tuple length:
 
 | Operation | Category | Outer loop | Recurse when |
 |-----------|----------|-----------|--------------|
-| `_build_fused!` | unary | `for r in axes(mask, D)` — all rows | always |
+| `_build_fused!` | unary | `for r in domain[D]` — all rows | always |
 | `_expand_fused!` | unary | same all-rows loop | always |
 | `_complement_fused!` | unary | `for r in last(domain)` — all rows; single pointer `i` advances through A | always |
 | `_intersect_fused!` | binary | `while ar < typemax \|\| br < typemax` | both A and B cover `r` |
