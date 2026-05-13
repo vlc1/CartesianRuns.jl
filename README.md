@@ -1,6 +1,6 @@
 # CartesianRuns.jl
 
-[![CI](https://github.com/vlc1/CartesianRuns.jl/actions/workflows/CI.yml/badge.svg?branch=ghost)](https://github.com/vlc1/CartesianRuns.jl/actions/workflows/CI.yml)
+[![CI](https://github.com/vlc1/CartesianRuns.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/vlc1/CartesianRuns.jl/actions/workflows/CI.yml)
 [![docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://vlc1.github.io/CartesianRuns.jl/dev/)
 
 A Julia package providing a read-only `AbstractVector{CartesianIndex{N}}`
