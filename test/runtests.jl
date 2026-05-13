@@ -7,6 +7,16 @@ _to_set(cri) = Set(collect(cri))
 # CartesianRunIndices — construction and indexing
 # ──────────────────────────────────────────────────────────────────────────────
 
+@testset "Interval and shift" begin
+    iv = Interval(3:5, 2)        # mask = 3:5, compact = 5:7
+    @test iv.mask    == 3:5
+    @test iv.compact == 5:7
+    @test shift(iv) == 2
+
+    iv2 = Interval(1:4, -3)      # compact = -2:1
+    @test shift(iv2) == -3
+end
+
 @testset "construction: 1D" begin
     mask = Bool[0, 1, 1, 0, 1]
     cri  = CartesianRunIndices(mask)
@@ -56,7 +66,23 @@ end
     sub2  = view(mask2, 1:2, 1:2)
     @test collect(cri2) == findall(sub2)
 
-    # full-domain constructor is equivalent to no-domain constructor
+    # Regression: domain starting at index > 1 must return original-space indices.
+    # Previously (OffsetArray-based impl) pairs(IndexLinear(), view) returned
+    # 1-based indices instead of the original mask coordinates.
+    mask4 = Bool[0, 0, 1, 1, 0, 1]
+    dom4  = (3:6,)
+    cri4  = CartesianRunIndices(mask4, dom4)
+    @test collect(cri4) == CartesianIndex.([3, 4, 6])
+
+    # 2D case: neither dimension starts at 1
+    mask5 = Bool[0 0 0; 0 1 1; 0 1 0]
+    dom5  = (2:3, 2:3)
+    cri5  = CartesianRunIndices(mask5, dom5)
+    # All returned indices must lie within dom5 and be true in mask5
+    @test all(ci -> mask5[ci] && ci[1] ∈ dom5[1] && ci[2] ∈ dom5[2], collect(cri5))
+    @test length(cri5) == count(@view mask5[2:3, 2:3])
+
+
     mask3 = rand(Bool, 4, 5)
     @test collect(CartesianRunIndices(mask3, axes(mask3))) ==
           collect(CartesianRunIndices(mask3))
@@ -88,6 +114,33 @@ end
                  falses(3, 3), trues(3, 3))
         @test expand(CartesianRunIndices(mask), axes(mask)) == mask
     end
+
+    # domain-restricted expand: output is length.(domain), not full mask size
+    mask6 = Bool[0, 1, 1, 0, 1, 0]
+    dom6  = (2:5,)
+    cri6  = CartesianRunIndices(mask6, dom6)
+    out6  = expand(cri6, dom6)
+    @test size(out6) == (length(dom6[1]),)
+    @test out6 == mask6[2:5]                    # sub-mask in 1-based output
+
+    # 2D domain-restricted expand
+    mask7 = Bool[1 0 1; 0 1 0; 1 0 1]
+    dom7  = (1:2, 2:3)
+    cri7  = CartesianRunIndices(mask7, dom7)
+    @test expand(cri7, dom7) == mask7[1:2, 2:3]
+end
+
+@testset "getindex" begin
+    mask = Bool[0, 1, 1, 0, 1]
+    cri  = CartesianRunIndices(mask)
+    trues_pos = CartesianIndex.(findall(mask))
+    for k in 1:length(cri)
+        @test cri[k] == trues_pos[k]
+    end
+    # 2D
+    mask2 = Bool[1 0 1; 0 1 0; 1 0 1]
+    cri2  = CartesianRunIndices(mask2)
+    @test [cri2[k] for k in 1:length(cri2)] == findall(mask2)
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -114,6 +167,16 @@ end
     @test _to_set(complement(CartesianRunIndices(falses(5)), (1:5,))) ==
           _to_set(CartesianRunIndices(trues(5)))
     @test isempty(complement(CartesianRunIndices(trues(5)), (1:5,)))
+end
+
+@testset "complement: restricted domain" begin
+    # complement over a subdomain — only positions *within the domain* not in cri
+    mask = Bool[0, 1, 1, 0, 1, 0]
+    dom  = (2:5,)
+    cri  = CartesianRunIndices(mask, dom)           # has {2,3,5}
+    c    = complement(cri, dom)                     # {4} within 2:5
+    @test _to_set(c) == Set([CartesianIndex(4)])
+    @test length(cri) + length(c) == length(dom[1])
 end
 
 # ──────────────────────────────────────────────────────────────────────────────

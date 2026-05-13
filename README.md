@@ -19,12 +19,12 @@ Two coordinate spaces are distinguished throughout:
 | Operation                    | Direction                          | Julia API                   |
 |------------------------------|------------------------------------|-----------------------------|
 | `CartesianRunIndices(mask)`  | boolean mask → compressed index set | constructor                |
-| `expand(cri)`           | compressed index set → boolean mask | `CartesianRuns.expand` |
+| `expand(cri, axes(mask))`    | compressed index set → boolean mask | `CartesianRuns.expand`     |
 | `cri[k]`                     | compact → mask space               | `Base.getindex`             |
 | `ci ∈ cri`                   | mask → compact (membership test)   | `Base.in`                   |
 
-`CartesianRunIndices(mask)` and `expand` are exact inverses:
-`expand(CartesianRunIndices(mask)) == mask`. Both are backed by
+`CartesianRunIndices(mask)` and `expand(cri, axes(mask))` are exact inverses:
+`expand(CartesianRunIndices(mask), axes(mask)) == mask`. Both are backed by
 `Interval` objects — each storing a contiguous mask-space run
 (`mask::UnitRange{Int}`) alongside the corresponding compact-space run
 (`compact::UnitRange{Int}`), always of equal length.
@@ -32,12 +32,12 @@ Two coordinate spaces are distinguished throughout:
 Set-algebraic operations return a new `CartesianRunIndices` without ever
 materialising a boolean mask:
 
-| Operation          | Returns                              | Julia API                  |
-|--------------------|--------------------------------------|----------------------------|
-| `complement(A)`    | positions in `domain(A)` not in `A`  | `CartesianRuns.complement` |
-| `intersect(A, B)`  | positions in both `A` and `B`        | `Base.intersect`           |
-| `union(A, B)`      | positions in `A`, `B`, or both       | `Base.union`               |
-| `setdiff(A, B)`    | positions in `A` but not in `B`      | `Base.setdiff`             |
+| Operation               | Returns                                   | Julia API                  |
+|-------------------------|-------------------------------------------|----------------------------|
+| `complement(A, domain)` | positions in `domain` not in `A`          | `CartesianRuns.complement` |
+| `intersect(A, B)`       | positions in both `A` and `B`             | `Base.intersect`           |
+| `union(A, B)`           | positions in `A`, `B`, or both            | `Base.union`               |
+| `setdiff(A, B)`         | positions in `A` but not in `B`           | `Base.setdiff`             |
 
 ## Example
 
@@ -81,17 +81,17 @@ distinguished by the length of the interval tuple — `NTuple{1,...}` +
 ### Unary operations
 
 **Construction** (`CartesianRunIndices(mask)`), **expand**
-(`expand(cri)`), and **complement** (`complement(cri)`) all iterate
-*every* row of the outermost axis with a single advancing pointer through
-the input's interval table.
+(`expand(cri, domain)`), and **complement** (`complement(cri, domain)`) all
+iterate *every* row of the outermost axis with a single advancing pointer
+through the input's interval table.
 
 - `CartesianRunIndices(mask)` builds the interval representation from a
   boolean mask (`_build_fused!` / `_build_runs!`).
-- `expand(cri)` is the exact inverse: it allocates a `Bool` array via
-  `similar`, fills it `false`, then writes `true` for each interval's mask
-  range (`_expand_fused!` / `_expand_runs!`).
-- `complement(cri)` produces a new `CartesianRunIndices` covering every row
-  in `domain(cri)` that is *not* covered by the input
+- `expand(cri, domain)` is the exact inverse: it allocates a `Bool` array via
+  `similar` (with shape `length.(domain)`), fills it `false`, then writes
+  `true` for each interval's mask range (`_expand_fused!` / `_expand_runs!`).
+- `complement(cri, domain)` produces a new `CartesianRunIndices` covering every
+  row in `domain` that is *not* covered by the input
   (`_complement_fused!` / `_complement_runs!`).
 
 ### Binary operations
