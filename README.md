@@ -1,5 +1,6 @@
 # CartesianRuns.jl
 
+[![CI](https://github.com/vlc1/CartesianRuns.jl/actions/workflows/CI.yml/badge.svg?branch=ghost)](https://github.com/vlc1/CartesianRuns.jl/actions/workflows/CI.yml)
 [![docs-dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://vlc1.github.io/CartesianRuns.jl/dev/)
 
 A Julia package providing a read-only `AbstractVector{CartesianIndex{N}}`
@@ -87,12 +88,17 @@ through the input's interval table.
 
 - `CartesianRunIndices(mask)` builds the interval representation from a
   boolean mask (`_build_fused!` / `_build_runs!`).
-- `expand(cri, domain)` is the exact inverse: it allocates a `Bool` array via
-  `similar` (with shape `length.(domain)`), fills it `false`, then writes
-  `true` for each interval's mask range (`_expand_fused!` / `_expand_runs!`).
+- `expand(cri, domain)` is the exact inverse: it allocates a zero-initialised
+  `Bool` array with shape `length.(domain)` and marks `true` for each
+  interval's mask range (`_expand_fused!` / `_expand_runs!`).
+  `domain` must be a `NTuple{N, Base.OneTo{Int}}`; `axes(mask)` always satisfies
+  this. For non-1-based domains load `OffsetArrays.jl`, which activates a
+  package extension that returns an `OffsetArray{Bool,N}` with `axes == domain`.
 - `complement(cri, domain)` produces a new `CartesianRunIndices` covering every
   row in `domain` that is *not* covered by the input
-  (`_complement_fused!` / `_complement_runs!`).
+  (`_complement_fused!` / `_complement_runs!`). Because all operations are in
+  mask-space coordinates and no array indexing occurs, `domain` may be any
+  `NTuple{N, <:AbstractUnitRange{Int}}` — no `OffsetArrays.jl` needed.
 
 ### Binary operations
 

@@ -41,15 +41,23 @@ function _expand_fused!(
 end
 
 """
-    expand(cri::CartesianRunIndices{N}, domain::NTuple{N,<:AbstractUnitRange{Int}}) -> AbstractArray{Bool,N}
+    expand(cri::CartesianRunIndices{N}, domain::NTuple{N,Base.OneTo{Int}}) -> Array{Bool,N}
 
-Reconstruct the boolean mask from `cri`: the returned array has shape
-`length.(domain)` and is `true` exactly at the positions in `cri`.
+Reconstruct the boolean mask from `cri`: the returned array has `axes` equal to
+`domain` and is `true` exactly at the positions in `cri`.
 
-`CartesianRunIndices(mask)` and `expand(cri, axes(mask))` are exact inverses.
+`CartesianRunIndices(mask)` and `expand(cri, axes(mask))` are exact inverses:
+
+```julia
+expand(CartesianRunIndices(mask), axes(mask)) == mask   # always true
+```
+
+`domain` must be a `NTuple` of `Base.OneTo{Int}` ranges (i.e., 1-based).
+For non-1-based domains, load `OffsetArrays.jl` first; `expand` will then
+return an `OffsetArray` with `axes` equal to `domain`.
 """
 function expand(cri::CartesianRunIndices{N},
-                domain::NTuple{N,<:AbstractUnitRange{Int}}) where {N}
+                domain::NTuple{N,Base.OneTo{Int}}) where {N}
     out = similar(cri.intervals[1], Bool, length.(domain))
     fill!(out, false)
     _expand_fused!(out, cri.intervals, cri.offsets, 1, length(last(cri.intervals)), domain)

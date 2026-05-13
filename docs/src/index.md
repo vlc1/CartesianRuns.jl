@@ -62,6 +62,25 @@ complement(cri, axes(mask))        # positions in axes(mask) not in cri
 
 `CartesianRunIndices(mask)` and `expand(cri, axes(mask))` are exact inverses.
 
+`expand` requires a **1-based domain** (`NTuple{N,Base.OneTo{Int}}`); for
+non-1-based domains load `OffsetArrays.jl` first, which returns an
+`OffsetArray{Bool,N}` with `axes` matching `domain`.
+`complement` accepts **any `AbstractUnitRange`** and always returns a
+`CartesianRunIndices` (no `OffsetArray` needed):
+
+```julia
+# The constructor and complement accept any AbstractUnitRange.
+cri_sub = CartesianRunIndices(mask, (1:2, 2:3))   # restricted to sub-domain
+c   = complement(cri_sub, (1:2, 2:3))  # CartesianRunIndices within sub-domain
+
+# expand with a non-1-based domain requires OffsetArrays.
+using OffsetArrays
+out = expand(cri_sub, (1:2, 2:3))      # OffsetArray{Bool,2} with axes (1:2, 2:3)
+```
+
+`expand` returns an `OffsetArray{Bool,N}` whose `axes` match `domain` when
+loaded with OffsetArrays.
+
 A second constructor restricts the scan to a sub-domain:
 
 ```julia

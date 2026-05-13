@@ -86,6 +86,9 @@ end
 
 Return a `CartesianRunIndices` containing every position in `domain` that
 is **not** in `cri`, computed directly from the interval representation.
+
+All positions are returned in the original mask-space coordinates, so `domain`
+may be any `AbstractUnitRange` — it need not be 1-based.
 """
 function complement(cri::CartesianRunIndices{1},
                     domain::NTuple{1,<:AbstractUnitRange{Int}})

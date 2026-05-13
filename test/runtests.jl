@@ -115,19 +115,16 @@ end
         @test expand(CartesianRunIndices(mask), axes(mask)) == mask
     end
 
-    # domain-restricted expand: output is length.(domain), not full mask size
+    # Non-1-based domains require OffsetArrays — MethodError without it
     mask6 = Bool[0, 1, 1, 0, 1, 0]
     dom6  = (2:5,)
     cri6  = CartesianRunIndices(mask6, dom6)
-    out6  = expand(cri6, dom6)
-    @test size(out6) == (length(dom6[1]),)
-    @test out6 == mask6[2:5]                    # sub-mask in 1-based output
+    @test_throws MethodError expand(cri6, dom6)
 
-    # 2D domain-restricted expand
     mask7 = Bool[1 0 1; 0 1 0; 1 0 1]
     dom7  = (1:2, 2:3)
     cri7  = CartesianRunIndices(mask7, dom7)
-    @test expand(cri7, dom7) == mask7[1:2, 2:3]
+    @test_throws MethodError expand(cri7, dom7)
 end
 
 @testset "getindex" begin
@@ -164,19 +161,24 @@ end
 end
 
 @testset "complement: trivial" begin
-    @test _to_set(complement(CartesianRunIndices(falses(5)), (1:5,))) ==
+    @test _to_set(complement(CartesianRunIndices(falses(5)), axes(falses(5)))) ==
           _to_set(CartesianRunIndices(trues(5)))
-    @test isempty(complement(CartesianRunIndices(trues(5)), (1:5,)))
+    @test isempty(complement(CartesianRunIndices(trues(5)), axes(trues(5))))
 end
 
 @testset "complement: restricted domain" begin
-    # complement over a subdomain — only positions *within the domain* not in cri
     mask = Bool[0, 1, 1, 0, 1, 0]
     dom  = (2:5,)
-    cri  = CartesianRunIndices(mask, dom)           # has {2,3,5}
-    c    = complement(cri, dom)                     # {4} within 2:5
+    cri  = CartesianRunIndices(mask, dom)   # {2, 3, 5} within 2:5
+    c    = complement(cri, dom)             # {4} within 2:5
     @test _to_set(c) == Set([CartesianIndex(4)])
     @test length(cri) + length(c) == length(dom[1])
+
+    mask2 = Bool[1 0 1; 0 1 0; 1 0 1]
+    dom2  = (2:3, 2:3)
+    cri2  = CartesianRunIndices(mask2, dom2)
+    c2    = complement(cri2, dom2)
+    @test length(cri2) + length(c2) == prod(length.(dom2))
 end
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -223,5 +225,49 @@ end
     @test _to_set(intersect(A, Sub)) == _to_set(Sub)
     @test isempty(setdiff(Sub, A))
     @test _to_set(union(A, Sub)) == SA
+end
+
+# ──────────────────────────────────────────────────────────────────────────────
+# OffsetArrays extension — non-1-based expand and complement
+# ──────────────────────────────────────────────────────────────────────────────
+
+using OffsetArrays
+
+@testset "OffsetArrays extension: expand" begin
+    # 1D: domain starting at 2
+    mask6 = Bool[0, 1, 1, 0, 1, 0]
+    dom6  = (2:5,)
+    cri6  = CartesianRunIndices(mask6, dom6)
+    out6  = expand(cri6, dom6)
+    @test axes(out6) == dom6                        # OffsetArray with correct axes
+    @test out6[2:5] == mask6[2:5]                   # correct values in mask space
+
+    # 2D: second axis starts at 2
+    mask7 = Bool[1 0 1; 0 1 0; 1 0 1]
+    dom7  = (1:2, 2:3)
+    cri7  = CartesianRunIndices(mask7, dom7)
+    out7  = expand(cri7, dom7)
+    @test axes(out7) == dom7
+    @test out7[1:2, 2:3] == mask7[1:2, 2:3]
+
+    # Round-trip: expand ∘ CartesianRunIndices == identity for full axes
+    for mask in (Bool[0, 1, 1, 0, 1, 0], Bool[1 0 1; 0 1 0; 1 0 1])
+        @test expand(CartesianRunIndices(mask), axes(mask)) == mask
+    end
+end
+
+@testset "OffsetArrays extension: complement duality" begin
+    # expand-complement duality requires expand (OffsetArrays), complement does not
+    mask = Bool[0, 1, 1, 0, 1, 0]
+    dom  = (2:5,)
+    cri  = CartesianRunIndices(mask, dom)
+    c    = complement(cri, dom)
+    @test expand(c, dom) == .!expand(cri, dom)
+
+    mask2 = Bool[1 0 1; 0 1 0; 1 0 1]
+    dom2  = (2:3, 2:3)
+    cri2  = CartesianRunIndices(mask2, dom2)
+    c2    = complement(cri2, dom2)
+    @test expand(c2, dom2) == .!expand(cri2, dom2)
 end
 

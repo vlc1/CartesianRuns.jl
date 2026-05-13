@@ -26,11 +26,12 @@ Reference: [SAMURAI](https://github.com/hpc-maths/samurai)
 | `src/intersect.jl`            | `intersect`: `_intersect_runs!`, `_intersect_fused!`            |
 | `src/setdiff.jl`              | `setdiff`: `_setdiff_runs!`, `_setdiff_fused!`                  |
 | `src/union.jl`                | `union`: `_union_runs!`, `_union_fused!`                        |
-| `test/runtests.jl`            | Test suite (run via `Pkg.test()`)                           |
+| `ext/OffsetArraysExt.jl` | Package extension: `expand` for non-1-based domains (requires `using OffsetArrays`) |
 | `docs/make.jl`                | Documenter build + deploy script                            |
 | `docs/src/index.md`           | Single-page API reference                                   |
-| `Project.toml`                | No runtime deps; test extras: `Test`                        |
-| `.github/workflows/CI.yml`    | CI on Julia 1.10, 1.12, pre (Ubuntu)                        |
+| `Project.toml`                | Weak dep: `OffsetArrays`; test extras: `Test`, `OffsetArrays`   |
+| `test/runtests.jl`            | Test suite (run via `Pkg.test()`)                           |
+| `.github/workflows/CI.yml`    | CI on Julia 1.10, 1.12, pre (Ubuntu); compat minimum is 1.9  |
 | `.github/workflows/Docs.yml`  | Docs build + deploy to GitHub Pages                         |
 | `.github/workflows/TagBot.yml`| Release tagging                                             |
 
@@ -102,8 +103,12 @@ their own source file (`src/intersect.jl`, `src/setdiff.jl`, `src/union.jl`,
 `src/complement.jl`, `src/expand.jl`). The shared helper `_inner_slice` is
 in `src/common.jl`, which is included first.
 
-`complement` and `expand` take an explicit `domain` argument (a
-`NTuple{N,<:AbstractUnitRange{Int}}`); the caller supplies the "universe".
+`complement` and `expand` take an explicit `domain` argument. `expand` requires `domain` to be
+`NTuple{N,Base.OneTo{Int}}` (i.e., 1-based); for non-1-based domains load
+`OffsetArrays.jl`, which activates the package extension `OffsetArraysExt`
+and returns an `OffsetArray{Bool,N}`. `complement` accepts any
+`NTuple{N,<:AbstractUnitRange{Int}}` without `OffsetArrays` because it
+operates entirely in mask-space coordinates and returns a `CartesianRunIndices`.
 Binary operations do not check domain compatibility — that is the caller's
 responsibility.
 
